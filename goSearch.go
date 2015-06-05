@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/url"
 	"path/filepath"
+	"github.com/bugra/kmeans"
 	"github.com/srom/tokenizer"
 	"github.com/ChimeraCoder/anaconda"
 )
@@ -13,15 +14,22 @@ var consumerKey = "47m4XBT9qogkUr1wyJv5sNiOi"
 var consumerSecret = "gz7c2zNkBPanG2AdR8MvlLqoi16AveGsSneOe05N9DkBiwonnY"
 var accessToken = "532932305-82LoqwU604eVUb8RkMIIWN5lHGLJMl3czqKJ8KMf"
 var accessSecret = "qf0NmAK9f6otfYHBneYKwe6dPQOz8DTn1RWlQvzeE3zXr"
-var TWEETS_AMOUNT = "1"
+var TWEETS_AMOUNT = "15"
 
 func main() {
 	list := searchTweets("Obama")
 	tokenizedList, bagOfWords := tokenize(list)
 	globalIndex := indexingTerms(bagOfWords)
-	vectorList := buildVector(tokenizedList, globalIndex)
-	fmt.Println(vectorList)
+	data := buildVector(tokenizedList, globalIndex)
+	// for _, item := range data {
+	// 	fmt.Println(item)
+	// }
+
+	clusters, _ := kmeans.Kmeans(data, 5, kmeans.EuclideanDistance, 100);
+	fmt.Println(clusters)
 }
+
+
 
 func searchTweets(query string) []string {
 	anaconda.SetConsumerKey(consumerKey)
@@ -52,19 +60,23 @@ func indexingTerms(bagOfWords []string)map[string]int {
 }
 
 //Questions
-func buildVector(tokenizedList []map[string]int) []map[string]float64 {
-	var vectorList []map[string]float64
+func buildVector(tokenizedList []map[string]int, globalIndex map[string]int) [][]float64 {
+	var data [][]float64
 	for _, doc := range tokenizedList {
-		for term, _ := range doc {		
+		post := make([]float64, len(globalIndex))
+		for term, _ := range doc {	
+			//calculate tf*idf for (q, d)
 			tf := getTF(doc, term)
 			idf := getIDF(tokenizedList, term)
 			score := float64(tf * idf)
-			vector := make(map[string]float64)
-			vector[term] = score
-			vectorList = append(vectorList, vector)
+			
+			//initialize the n-d array
+			index := globalIndex[term]
+			post[index] = score
 		}
+		data = append(data, post)
 	}
-	return vectorList
+	return data
 }
  
 func getTF(doc map[string]int, term string) float64 {
@@ -87,10 +99,9 @@ func getIDF(documents []map[string]int, term string) float64 {
 	var totalDocs = float64(len(documents))
 	return math.Log(totalDocs / df)
 }
-// func globalWordsCorpus(list []map[string]int) map[string]int{
-	
-// }
 
+//tokenize every post as a array of HashMap<term, appering_times>
+//tokenize all terms return a global unique bag of words
 func tokenize(list []string) ([]map[string]int, []string) {
 	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
