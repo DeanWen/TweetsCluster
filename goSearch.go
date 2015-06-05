@@ -10,26 +10,53 @@ import (
 	"github.com/ChimeraCoder/anaconda"
 )
 
-var consumerKey = "47m4XBT9qogkUr1wyJv5sNiOi"
-var consumerSecret = "gz7c2zNkBPanG2AdR8MvlLqoi16AveGsSneOe05N9DkBiwonnY"
-var accessToken = "532932305-82LoqwU604eVUb8RkMIIWN5lHGLJMl3czqKJ8KMf"
-var accessSecret = "qf0NmAK9f6otfYHBneYKwe6dPQOz8DTn1RWlQvzeE3zXr"
-var TWEETS_AMOUNT = "15"
+const consumerKey = "47m4XBT9qogkUr1wyJv5sNiOi"
+const consumerSecret = "gz7c2zNkBPanG2AdR8MvlLqoi16AveGsSneOe05N9DkBiwonnY"
+const accessToken = "532932305-82LoqwU604eVUb8RkMIIWN5lHGLJMl3czqKJ8KMf"
+const accessSecret = "qf0NmAK9f6otfYHBneYKwe6dPQOz8DTn1RWlQvzeE3zXr"
+const TWEETS_AMOUNT = "3"
 
-func main() {
-	list := searchTweets("Obama")
-	tokenizedList, bagOfWords := tokenize(list)
-	globalIndex := indexingTerms(bagOfWords)
-	data := buildVector(tokenizedList, globalIndex)
-	// for _, item := range data {
-	// 	fmt.Println(item)
-	// }
-
-	clusters, _ := kmeans.Kmeans(data, 5, kmeans.EuclideanDistance, 100);
-	fmt.Println(clusters)
+type Node struct {
+	post string
+	token map[string]int
+	vector []float64
+	clusterID int
 }
 
+func main() {
+	post := searchTweets("Obama")
+	tokenizedList, bagOfWords := tokenize(post)
+	nodes := make([]Node, len(post))
+	for i, post := range post {
+		nodes[i].post = post
+		nodes[i].token = tokenizedList[i]
+	}
+	
+	globalIndex := indexingTerms(bagOfWords)
+	data := buildVector(tokenizedList, globalIndex)
+	clusters, _ := kmeans.Kmeans(data, 5, kmeans.EuclideanDistance, 100);
 
+	printResult(post, clusters)
+
+	for _, node := range nodes {
+		fmt.Println(node.post)
+		fmt.Println(node.token)
+	}
+}
+
+func printResult(posts []string, clusters[]int) {
+	// res := make(map[int][]string)
+	// for index, groupID := range clusters {
+	// 	res[groupID] = append(res[groupID], posts[index])
+	// }
+
+	// for id, texts :=range res {
+	// 	fmt.Println("cluster", id)
+	// 	for _ , text :=range texts {
+	// 		fmt.Println(text)
+	// 	}
+	// }
+}
 
 func searchTweets(query string) []string {
 	anaconda.SetConsumerKey(consumerKey)
@@ -51,7 +78,7 @@ func searchTweets(query string) []string {
 	return result
 }
 
-func indexingTerms(bagOfWords []string)map[string]int {
+func indexingTerms(bagOfWords []string) map[string]int {
 	indexList := make(map[string]int)
 	for index, term := range bagOfWords {
 		indexList[term] = index
@@ -59,22 +86,26 @@ func indexingTerms(bagOfWords []string)map[string]int {
 	return indexList
 }
 
-//Questions
-func buildVector(tokenizedList []map[string]int, globalIndex map[string]int) [][]float64 {
+func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]float64 {
+	//a list of ND-Vector
 	var data [][]float64
 	for _, doc := range tokenizedList {
-		post := make([]float64, len(globalIndex))
+		//set up ND-Vector n is the length of dictionary
+		vector := make([]float64, len(dictionary))
 		for term, _ := range doc {	
-			//calculate tf*idf for (q, d)
+			//calculate tf (term, doc)
 			tf := getTF(doc, term)
+			//calculate idf (corpus, term)
 			idf := getIDF(tokenizedList, term)
+			//calculate score of tf*idf
 			score := float64(tf * idf)
 			
-			//initialize the n-d array
-			index := globalIndex[term]
-			post[index] = score
+			//loop up the index of term from dictionary
+			index := dictionary[term]
+			vector[index] = score
 		}
-		data = append(data, post)
+		//add to ND-Vector list
+		data = append(data, vector)
 	}
 	return data
 }
@@ -102,12 +133,12 @@ func getIDF(documents []map[string]int, term string) float64 {
 
 //tokenize every post as a array of HashMap<term, appering_times>
 //tokenize all terms return a global unique bag of words
-func tokenize(list []string) ([]map[string]int, []string) {
+func tokenize(posts []string) ([]map[string]int, []string) {
 	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
 	var tokenizedList []map[string]int
 	var rawCorpus []string
-	for _, text := range list {
+	for _, text := range posts {
 		tokens := bwtokenizer.Tokenize(text)
 		rawCorpus = append(rawCorpus, tokens...)
 		dict := wordCount(tokens)
