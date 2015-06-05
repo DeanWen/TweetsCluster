@@ -15,6 +15,8 @@ const consumerSecret = "gz7c2zNkBPanG2AdR8MvlLqoi16AveGsSneOe05N9DkBiwonnY"
 const accessToken = "532932305-82LoqwU604eVUb8RkMIIWN5lHGLJMl3czqKJ8KMf"
 const accessSecret = "qf0NmAK9f6otfYHBneYKwe6dPQOz8DTn1RWlQvzeE3zXr"
 const TWEETS_AMOUNT = "3"
+const K = 5
+const threshold = 100
 
 type Node struct {
 	post string
@@ -26,21 +28,26 @@ type Node struct {
 func main() {
 	post := searchTweets("Obama")
 	tokenizedList, bagOfWords := tokenize(post)
+	dictionary := indexingTerms(bagOfWords)
+	data := buildVector(tokenizedList, dictionary)
+	clusters, _ := kmeans.Kmeans(data, K, kmeans.EuclideanDistance, threshold);
+
 	nodes := make([]Node, len(post))
 	for i, post := range post {
 		nodes[i].post = post
 		nodes[i].token = tokenizedList[i]
+		nodes[i].vector = data[i]
+		nodes[i].clusterID = clusters[i]
 	}
-	
-	globalIndex := indexingTerms(bagOfWords)
-	data := buildVector(tokenizedList, globalIndex)
-	clusters, _ := kmeans.Kmeans(data, 5, kmeans.EuclideanDistance, 100);
 
 	printResult(post, clusters)
 
+	fmt.Println(dictionary)
+	fmt.Println()
 	for _, node := range nodes {
 		fmt.Println(node.post)
 		fmt.Println(node.token)
+		fmt.Println(node.vector)
 	}
 }
 
@@ -93,7 +100,7 @@ func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]
 		//set up ND-Vector n is the length of dictionary
 		vector := make([]float64, len(dictionary))
 		for term, _ := range doc {	
-			//calculate tf (term, doc)
+			//calculate tf (tdoc, doc)
 			tf := getTF(doc, term)
 			//calculate idf (corpus, term)
 			idf := getIDF(tokenizedList, term)
