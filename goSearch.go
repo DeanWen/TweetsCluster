@@ -6,6 +6,7 @@ import (
 	"github.com/srom/tokenizer"
 	"net/url"
 	"path/filepath"
+	"math"
 )
 
 var consumerKey = "47m4XBT9qogkUr1wyJv5sNiOi"
@@ -15,8 +16,10 @@ var accessSecret = "qf0NmAK9f6otfYHBneYKwe6dPQOz8DTn1RWlQvzeE3zXr"
 var TWEETS_AMOUNT = "100"
 
 func main() {
-	list := searchTweets("Obama");
-	setUpDict(list);
+	list := searchTweets("Obama")
+	// setUpDict(list);
+	tokenizedList := Tokenize(list)
+	fmt.Println(tokenizedList)
 }
 
 func searchTweets(query string)([]string){
@@ -39,16 +42,38 @@ func searchTweets(query string)([]string){
 	return result
 }
 
-func setUpDict(list []string) {
+func getTF(vector map[string]int, term string)float64 {
+	var n int
+	_, present := vector[term]
+    if present {
+        n = vector[term]  
+    } else {
+    	n = 0
+    }
+    return float64(n / len(vector))
+}
+
+func getIDF(documents []map[string]int, term string)float64 {
+	var n = 0
+	for _, doc := range documents {
+		_, present := doc[term]
+    	if present {
+        	n++ 
+    	}
+	}
+	return math.Log(float64(len(documents) / n))
+}
+
+func Tokenize(list []string)[]map[string]int {
 	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
-	var bagOfWord []string
+	var tokenizedList []map[string]int
 	for _, text := range list {
 		tokens := bwtokenizer.Tokenize(text)
-		bagOfWord = append(bagOfWord, tokens...)
+		dict := WordCount(tokens)
+		tokenizedList = append(tokenizedList, dict)
 	}
-	dict := WordCount(bagOfWord)
-	fmt.Println(dict)
+	return tokenizedList
 }
 
 func WordCount(s []string) map[string]int {
