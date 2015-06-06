@@ -36,7 +36,7 @@ How to Run
 		go get github.com/bugra/kmeans
 		go get github.com/srom/tokenizer
 		go get github.com/ChimeraCoder/anaconda 
-		go run goSearch.go 'query'  
+		go run goSearch.go 'type what ever you want to search'  
  	
  	Output will be in the same directory as well  
 
