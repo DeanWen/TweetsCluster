@@ -7,6 +7,7 @@ Required Files - put into same directory
 	1. goSearch.go (main program)
 	2. stop_words.txt (using for NLP)
 	3. Steve Jobs-cluster.txt (Sample Output)
+	4. cluster-twitter.sh (shell script to run the program) 
 
 Main Idea  
 
@@ -30,7 +31,15 @@ Main Idea
 
 
 How to Run
-
+	
+	Method 1 Easiest Way
+	Please make sure you have well configured your $GOPATH in your ./bash_profile  
+	
+	then type in the terminal 
+	
+	bash cluster-twitter.sh -q "type whatever you want to search"
+	
+	Method 2
 	Put folder under the $GOPATH directory 
 	
 		go get github.com/bugra/kmeans
