@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"strconv"
 	"net/url"
 	"reflect"
 	"path/filepath"
@@ -33,35 +34,35 @@ type Node struct {
 
 func main() {
 	/*
-	@posts : the list of all tweets.Text
-	@nodes : the list of all nodes
-	*/
+	 *@posts : the list of all tweets.Text
+	 *@nodes : the list of all nodes
+	 */
 	posts, nodes := searchTweets("Obama")
 	
 	/*
-	@tokenizedList : the list of tokenized posts (tweet.text)
-	@bagOfWords : the list of all unique words
-	*/
+	 *@tokenizedList : the list of tokenized posts (tweet.text)
+	 *@bagOfWords : the list of all unique words
+	 */
 	tokenizedList, bagOfWords := tokenize(posts)
 	
 	/*
-	@dictionary : a global index
-	*/
+	 *@dictionary : a global index
+	 */
 	dictionary := indexingTerms(bagOfWords)
 	
 	/*
-	@data : the list of all vectors
-	*/
+	 *@data : the list of all vectors
+	 */
 	data := buildVector(tokenizedList, dictionary)
 	
 	/*
-	@clusters : the list of cluster IDs
-	*/
+	 *@clusters : the list of cluster IDs
+	 */
 	clusters, _ := kmeans.Kmeans(data, K, kmeans.EuclideanDistance, threshold);
 
 	/*
-	complete attributes to each node
-	*/
+	 *complete attributes to each node
+	 */
 	for i, _ := range nodes {
 		nodes[i].token = tokenizedList[i]
 		nodes[i].vector = data[i]
@@ -69,24 +70,36 @@ func main() {
 	}
 
 	/*
-	put node that is in same cluster to the same group
-	map <key = groupID, value = node>
-	*/
+	 *put node that is in same cluster to the same group
+	 *map <key = groupID, value = node>
+	 */
 	grouped := make(map[int][]Node)
 	for _, node := range nodes {
 		grouped[node.clusterID] = append (grouped[node.clusterID], node)
 	}
 
+	/*
+	 *assign Euclidean distance to each node vector from group center
+	 */
 	finalClusters := setDistance(grouped)
 
+	/*
+	 *print in terminal and write to file
+	 */
 	printRes(finalClusters)
-	writeFile()
 }
 
 func printRes(finalClusters map[int][]Node) {
+	filename := "Documents/GO/searchTweets/test.txt"
+	f, err := os.Create(filename)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	for cid, clusters := range finalClusters {
 		fmt.Println("Cluster :", cid)
-
+		n, err := io.WriteString(f, "Cluster : " + strconv.Itoa(cid) + "\n")
+		
 		best := clusters[0]
 		first := clusters[0]
 		for _, node := range clusters {
@@ -103,45 +116,41 @@ func printRes(finalClusters map[int][]Node) {
 		fmt.Println("First Result")
 		fmt.Println(first.post)
 
+		n, err = io.WriteString(f, "Best Result \n")
+		n, err = io.WriteString(f, best.post + "\n")
+		n, err = io.WriteString(f, "First Result \n")
+		n, err = io.WriteString(f, first.post + "\n")
+
+		if err != nil {
+    		fmt.Println(n, err)
+  		}
+
 		fmt.Println("Other Result - newest to oldest")
+		n, err = io.WriteString(f, "Other Result - newest to oldest \n")
+
 		for _, node := range clusters {
 			if !reflect.DeepEqual(node, first) && 
 			   !reflect.DeepEqual (node, best) {
 				fmt.Println(node.post)
+				n, err = io.WriteString(f, node.post + "\n")
 			}
 		}
-
+		
+		n, err = io.WriteString(f, "\n")
 		fmt.Println()
 	}
-}
 
-func writeFile() {
-	filename := "Documents/GO/searchTweets/test.txt"
-
-	fmt.Println("writing: " + filename)
-	
-	f, err := os.Create(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
-	
-	n, err := io.WriteString(f, "blahblahblah")
-	if err != nil {
-		fmt.Println(n, err)
-	}
-	
 	f.Close()
 }
 
 func setDistance(groups map[int][]Node) map[int][]Node {
 	res := make(map[int][]Node)
 
-	for gid, eachGroup := range groups {
-		//fmt.Println(gid)
+	for gid, eachGroup := range groups {		
 		
 		sum := make([]float64, len(eachGroup[0].vector))
+		
 		for _, node := range eachGroup {
-			//fmt.Println(node.vector)
 			sum = add(node.vector, sum)
 		}
 		
@@ -159,17 +168,21 @@ func setDistance(groups map[int][]Node) map[int][]Node {
 
 func add(vector1, vector2 []float64) []float64 {
 	res := make([]float64, len(vector1))
+	
 	for ii, _ := range vector1 {
 		res[ii] = vector1[ii] + vector2[ii]
 	}
+	
 	return res
 }
 
 func div(vector []float64, op float64) []float64 {
 	res := make([]float64, len(vector))
+	
 	for ii, jj := range vector {
 		res[ii] = jj / op
 	}
+	
 	return res
 }
 
@@ -193,6 +206,7 @@ func searchTweets(query string) ([]string, []Node){
 	
 	var result []string
 	var nodes []Node
+	
 	for _, tweet := range search_result.Statuses {
 		var node Node
 		node.post = tweet.Text
@@ -207,15 +221,18 @@ func searchTweets(query string) ([]string, []Node){
 
 func indexingTerms(bagOfWords []string) map[string]int {
 	indexList := make(map[string]int)
+	
 	for index, term := range bagOfWords {
 		indexList[term] = index
 	}
+	
 	return indexList
 }
 
 func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]float64 {
 	//a list of ND-Vector
 	var data [][]float64
+	
 	for _, doc := range tokenizedList {
 		//set up ND-Vector n is the length of dictionary
 		vector := make([]float64, len(dictionary))
@@ -234,6 +251,7 @@ func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]
 		//add to ND-Vector list
 		data = append(data, vector)
 	}
+	
 	return data
 }
  
@@ -248,12 +266,14 @@ func getTF(doc map[string]int, term string) float64 {
 
 func getIDF(documents []map[string]int, term string) float64 {
 	var df float64 = 0.0
+	
 	for _, doc := range documents {
 		_, present := doc[term]
     	if present {
         	df++ 
     	}
 	}
+	
 	var totalDocs = float64(len(documents))
 	return math.Log(totalDocs / df)
 }
@@ -263,8 +283,10 @@ func getIDF(documents []map[string]int, term string) float64 {
 func tokenize(posts []string) ([]map[string]int, []string) {
 	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
+	
 	var tokenizedList []map[string]int
 	var rawCorpus []string
+	
 	for _, text := range posts {
 		tokens := bwtokenizer.Tokenize(text)
 		rawCorpus = append(rawCorpus, tokens...)
@@ -275,6 +297,7 @@ func tokenize(posts []string) ([]map[string]int, []string) {
 	//find tokenized global unique bag of words corpus
 	uniqueCorpusDict := wordCount(rawCorpus)
 	var bagOfUniqueWords []string
+	
 	for term, _ := range uniqueCorpusDict {
 		bagOfUniqueWords = append(bagOfUniqueWords, term)
 	}
@@ -284,6 +307,7 @@ func tokenize(posts []string) ([]map[string]int, []string) {
 
 func wordCount(s []string) map[string]int {
     dict := make(map[string]int)
+    
     for _, string := range s {
         _, present := dict[string]
         if present {
@@ -292,5 +316,6 @@ func wordCount(s []string) map[string]int {
             dict[string] = 1
         }
     }
+    
     return dict
 }
