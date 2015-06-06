@@ -1,3 +1,13 @@
+/*
+ * Tweets Automatic Clustering Program
+ *
+ * Author: Dian (Dean) Wen
+ * Github: github.com/DeanWen
+ * Carnegie Mellon University
+ * Jun-5-2015 
+ * 
+ * All Rights Reserved
+ */
 package main
 
 import (
@@ -10,11 +20,20 @@ import (
 	"net/url"
 	"reflect"
 	"path/filepath"
-	"github.com/bugra/kmeans"
-	"github.com/srom/tokenizer"
-	"github.com/ChimeraCoder/anaconda"
+	"github.com/bugra/kmeans"//K-Means Library
+	"github.com/srom/tokenizer"//NLP Tokenizer for English
+	"github.com/ChimeraCoder/anaconda"//Twitter Library for Golang
 )
 
+/*
+ *Twitter APIs
+ *@consumerKey,@consumerSecret
+ *@accessToken,@accessSecret
+ *
+ *K-Means Constants
+ *@K cluster by k groups
+ *@threshold the maximum clustering times
+ */
 const consumerKey = "47m4XBT9qogkUr1wyJv5sNiOi"
 const consumerSecret = "gz7c2zNkBPanG2AdR8MvlLqoi16AveGsSneOe05N9DkBiwonnY"
 const accessToken = "532932305-82LoqwU604eVUb8RkMIIWN5lHGLJMl3czqKJ8KMf"
@@ -23,6 +42,16 @@ const TWEETS_AMOUNT = "100"
 const K = 10
 const threshold = 100
 
+
+/*
+ * Customer Data Type
+ * @time tweets create time
+ * @post tweets text
+ * @token tokenizes and stemmed tweets text
+ * @vector tf-idf vector
+ * @clusterID K-Means clustered ID
+ * @distance the distance to the cluster center
+ */
 type Node struct {
 	time time.Time
 	post string
@@ -89,197 +118,16 @@ func main() {
 	printRes(finalClusters)
 }
 
-func printRes(finalClusters map[int][]Node) {
-	filename := "Documents/GO/searchTweets/test.txt"
-	f, err := os.Create(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	for cid, clusters := range finalClusters {
-		fmt.Println("Cluster :", cid)
-		n, err := io.WriteString(f, "Cluster : " + strconv.Itoa(cid) + "\n")
-		
-		best := clusters[0]
-		first := clusters[0]
-		for _, node := range clusters {
-			if node.distance < best.distance {
-				best = node
-			}
-			if node.time.Before(first.time) {
-				first = node
-			}
-		}
-		
-		fmt.Println("Best Result")
-		fmt.Println(best.post)
-		fmt.Println("First Result")
-		fmt.Println(first.post)
-
-		n, err = io.WriteString(f, "Best Result \n")
-		n, err = io.WriteString(f, best.post + "\n")
-		n, err = io.WriteString(f, "First Result \n")
-		n, err = io.WriteString(f, first.post + "\n")
-
-		if err != nil {
-    		fmt.Println(n, err)
-  		}
-
-		fmt.Println("Other Result - newest to oldest")
-		n, err = io.WriteString(f, "Other Result - newest to oldest \n")
-
-		for _, node := range clusters {
-			if !reflect.DeepEqual(node, first) && 
-			   !reflect.DeepEqual (node, best) {
-				fmt.Println(node.post)
-				n, err = io.WriteString(f, node.post + "\n")
-			}
-		}
-		
-		n, err = io.WriteString(f, "\n")
-		fmt.Println()
-	}
-
-	f.Close()
-}
-
-func setDistance(groups map[int][]Node) map[int][]Node {
-	res := make(map[int][]Node)
-
-	for gid, eachGroup := range groups {		
-		
-		sum := make([]float64, len(eachGroup[0].vector))
-		
-		for _, node := range eachGroup {
-			sum = add(node.vector, sum)
-		}
-		
-		center := getCenter(sum, len(eachGroup))
-
-		for _, node := range eachGroup {
-			dis, _ := kmeans.EuclideanDistance(node.vector, center)
-			node.distance = dis
-			res[gid] = append(res[gid], node)
-		}
-	}
-
-	return res
-}
-
-func add(vector1, vector2 []float64) []float64 {
-	res := make([]float64, len(vector1))
-	
-	for ii, _ := range vector1 {
-		res[ii] = vector1[ii] + vector2[ii]
-	}
-	
-	return res
-}
-
-func div(vector []float64, op float64) []float64 {
-	res := make([]float64, len(vector))
-	
-	for ii, jj := range vector {
-		res[ii] = jj / op
-	}
-	
-	return res
-}
-
-func getCenter(sum []float64, num int) []float64{
-	center := div(sum, float64(num))
-	return center
-}
-
-func searchTweets(query string) ([]string, []Node){
-	anaconda.SetConsumerKey(consumerKey)
-	anaconda.SetConsumerSecret(consumerSecret)
-	api := anaconda.NewTwitterApi(accessToken, accessSecret)
-	
-	v := url.Values{}
-	v.Set("count", TWEETS_AMOUNT)
-	search_result, err := api.GetSearch(query, v)
-	
-	if err != nil {
-		panic(err)
-	}
-	
-	var result []string
-	var nodes []Node
-	
-	for _, tweet := range search_result.Statuses {
-		var node Node
-		node.post = tweet.Text
-		node.time, _ = time.Parse(time.RubyDate,tweet.CreatedAt)
-		
-		result = append(result, tweet.Text)
-		nodes = append(nodes, node)
-	}
-
-	return result, nodes
-}
-
-func indexingTerms(bagOfWords []string) map[string]int {
-	indexList := make(map[string]int)
-	
-	for index, term := range bagOfWords {
-		indexList[term] = index
-	}
-	
-	return indexList
-}
-
-func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]float64 {
-	//a list of ND-Vector
-	var data [][]float64
-	
-	for _, doc := range tokenizedList {
-		//set up ND-Vector n is the length of dictionary
-		vector := make([]float64, len(dictionary))
-		for term, _ := range doc {	
-			//calculate tf (tdoc, doc)
-			tf := getTF(doc, term)
-			//calculate idf (corpus, term)
-			idf := getIDF(tokenizedList, term)
-			//calculate score of tf*idf
-			score := float64(tf * idf)
-			
-			//loop up the index of term from dictionary
-			index := dictionary[term]
-			vector[index] = score
-		}
-		//add to ND-Vector list
-		data = append(data, vector)
-	}
-	
-	return data
-}
- 
-func getTF(doc map[string]int, term string) float64 {
-	var tf float64 = 0.0
-	_, present := doc[term]
-    if present {
-        tf = float64(doc[term])  
-    }
-    return float64(tf / float64(len(doc)))
-}
-
-func getIDF(documents []map[string]int, term string) float64 {
-	var df float64 = 0.0
-	
-	for _, doc := range documents {
-		_, present := doc[term]
-    	if present {
-        	df++ 
-    	}
-	}
-	
-	var totalDocs = float64(len(documents))
-	return math.Log(totalDocs / df)
-}
-
-//tokenize every post as a array of HashMap<term, appering_times>
-//tokenize all terms return a global unique bag of words
+/*
+ *Tokenize Method in English
+ * 1. to remove all stopwords 
+ * 2. stemming the terms
+ * 3. atomize the unique terms
+ *@posts all tweets text
+ * Return
+ * @HashMap<term, appering_times> tokenized token for each tweets text
+ * @bagOfUniqueWords[]string a global unique bag of words
+ */
 func tokenize(posts []string) ([]map[string]int, []string) {
 	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
@@ -305,6 +153,190 @@ func tokenize(posts []string) ([]map[string]int, []string) {
 	return tokenizedList, bagOfUniqueWords
 }
 
+/*
+ * Calculate term frequency(tf)
+ * @doc
+ * @term
+ */
+func getTF(doc map[string]int, term string) float64 {
+	var tf float64 = 0.0
+	_, present := doc[term]
+    if present {
+        tf = float64(doc[term])  
+    }
+    return float64(tf / float64(len(doc)))
+}
+
+/*
+ * Calculate inverse document frequency(idf)
+ * @documents the corpus 
+ * @term
+ */
+func getIDF(documents []map[string]int, term string) float64 {
+	var df float64 = 0.0
+	
+	for _, doc := range documents {
+		_, present := doc[term]
+    	if present {
+        	df++ 
+    	}
+	}
+	
+	var totalDocs = float64(len(documents))
+	return math.Log(totalDocs / df)
+}
+
+/*
+ * build Vector method
+ * @tokenizedList all tonkenized post collections
+ * @dictionary the global index to look up terms
+ * Return 
+ * 		@[][]float64 a N-Dimension Vector Collections
+ */
+func buildVector(tokenizedList []map[string]int, dictionary map[string]int) [][]float64 {
+	//a list of ND-Vector
+	var data [][]float64
+	
+	for _, doc := range tokenizedList {
+		//set up ND-Vector n is the length of dictionary
+		vector := make([]float64, len(dictionary))
+		for term, _ := range doc {	
+			//calculate tf (tdoc, doc)
+			tf := getTF(doc, term)
+			//calculate idf (corpus, term)
+			idf := getIDF(tokenizedList, term)
+			//calculate score of tf*idf
+			score := float64(tf * idf)
+			
+			//loop up the index of term from dictionary
+			index := dictionary[term]
+			vector[index] = score
+		}
+		//add to ND-Vector list
+		data = append(data, vector)
+	}
+	
+	return data
+}
+
+/*
+ * indexing method to create the dictionary
+ * @bagOfWords all unique term collections
+ * Return 
+ *	@indexList map[string]int a dictionary to look up all terms
+ */
+func indexingTerms(bagOfWords []string) map[string]int {
+	indexList := make(map[string]int)
+	
+	for index, term := range bagOfWords {
+		indexList[term] = index
+	}
+	
+	return indexList
+}
+
+/*
+ * calculate the Euclidean distance of each node to group center 
+ */
+func setDistance(groups map[int][]Node) map[int][]Node {
+	res := make(map[int][]Node)
+	for gid, eachGroup := range groups {		
+		sum := make([]float64, len(eachGroup[0].vector))
+		for _, node := range eachGroup {
+			sum = add(node.vector, sum)
+		}
+
+		/*
+		 *center vector
+		 */
+		center := getCenter(sum, len(eachGroup))
+
+		/*
+		 * Using Euclidean Distance
+		 */
+		for _, node := range eachGroup {
+			dis, _ := kmeans.EuclideanDistance(node.vector, center)
+			node.distance = dis
+			res[gid] = append(res[gid], node)
+		}
+	}
+	return res
+}
+
+/*
+ * two vector sum method
+ * @vector1
+ * @vector2
+ */
+func add(vector1, vector2 []float64) []float64 {
+	res := make([]float64, len(vector1))
+	for ii, _ := range vector1 {
+		res[ii] = vector1[ii] + vector2[ii]
+	}
+	return res
+}
+
+/*
+ * vector divide method
+ * @vector
+ * @divider
+ */
+func div(vector []float64, op float64) []float64 {
+	res := make([]float64, len(vector))
+	for ii, jj := range vector {
+		res[ii] = jj / op
+	}
+	return res
+}
+
+/*
+ * calculate the cluster center vector
+ * formula: sum[0...0] / total # of nodes
+ */
+func getCenter(sum []float64, num int) []float64{
+	center := div(sum, float64(num))
+	return center
+}
+
+/*
+ * search tweets
+ * @query the content want to retrieval
+ * return
+ *	 @[]string all tweets text list
+ *   @[]Node all nodes with tweets text and timestamp
+ */
+func searchTweets(query string) ([]string, []Node){
+	anaconda.SetConsumerKey(consumerKey)
+	anaconda.SetConsumerSecret(consumerSecret)
+	api := anaconda.NewTwitterApi(accessToken, accessSecret)
+	//set up the optional parameter[@count amount of tweets]
+	v := url.Values{}
+	v.Set("count", TWEETS_AMOUNT)
+	search_result, err := api.GetSearch(query, v)
+	if err != nil {
+		panic(err)
+	}
+	
+	var result []string
+	var nodes []Node
+	for _, tweet := range search_result.Statuses {
+		var node Node
+		node.post = tweet.Text
+		node.time, _ = time.Parse(time.RubyDate,tweet.CreatedAt)
+		
+		result = append(result, tweet.Text)
+		nodes = append(nodes, node)
+	}
+
+	return result, nodes
+}
+
+/*
+ * Word Count method
+ * @s post text
+ * Return
+ * map<key = term, value = appearing times>
+ */
 func wordCount(s []string) map[string]int {
     dict := make(map[string]int)
     
@@ -318,4 +350,112 @@ func wordCount(s []string) map[string]int {
     }
     
     return dict
+}
+
+/*
+ * Bubble Sort for sort by time
+ * Since amount is limited, BB sort is quite effetive as well
+ */
+func bubbleSort(arrayzor []Node) {
+	swapped := true;
+	for swapped {
+		swapped = false
+		for i := 0; i < len(arrayzor) - 1; i++ {
+			if arrayzor[i + 1].time.After(arrayzor[i].time) {
+				swap(arrayzor, i, i + 1)
+				swapped = true
+			}
+		}
+	}	
+}
+
+/*
+ * swap method for bubble sort
+ */
+func swap(arrayzor []Node, i, j int) {
+	tmp := arrayzor[j]
+	arrayzor[j] = arrayzor[i]
+	arrayzor[i] = tmp
+}
+
+
+func printRes(finalClusters map[int][]Node) {
+	filename := "Documents/GO/searchTweets/test.txt"
+	f, err := os.Create(filename)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for cid, clusters := range finalClusters {
+		fmt.Println("Cluster :", cid)
+		n, err := io.WriteString(f, "Cluster : " + strconv.Itoa(cid) + "\n")
+		
+		/*
+		 * Find the closest node to be BEST
+		 * Find the earilest node to be FIRST
+		 */
+		best := clusters[0]
+		first := clusters[0]
+		for _, node := range clusters {
+			if node.distance < best.distance {
+				best = node
+			}
+			if node.time.Before(first.time) {
+				first = node
+			}
+		}
+		
+		/*
+		 * Print in Terminal
+		 */
+		fmt.Println("Best Result")
+		fmt.Println(best.time.String(), best.post)
+		fmt.Println("First Result")
+		fmt.Println(first.time.String(), first.post)
+
+		/*
+		 * Write to the File
+		 */
+		n, err = io.WriteString(f, "Best Result \n")
+		n, err = io.WriteString(f, best.time.String() + best.post + "\n")
+		n, err = io.WriteString(f, "First Result \n")
+		n, err = io.WriteString(f, first.time.String() + first.post + "\n")
+
+		/*
+		 *check error
+		 */
+		if err != nil {
+    		fmt.Println(n, err)
+  		}
+
+		fmt.Println("Other Result - newest to oldest")
+		n, err = io.WriteString(f, "Other Result - newest to oldest \n")
+
+		/*
+		 *split rest post
+		 */
+		var rest []Node
+		for _, node := range clusters {
+			if !reflect.DeepEqual(node, first) && 
+			   !reflect.DeepEqual (node, best) {
+			   	rest = append(rest, node)
+			}
+		}
+
+		/*
+		 * Sort by tweets.time
+		 * make sure newest comes first
+		 */
+		bubbleSort(rest)
+
+		for _, node := range rest {
+			fmt.Println(node.time, node.post)
+			n, err = io.WriteString(f, node.time.String() + node.post + "\n")
+		}
+
+		n, err = io.WriteString(f, "\n")
+		fmt.Println()
+	}
+
+	f.Close()
 }
