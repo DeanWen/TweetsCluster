@@ -1,6 +1,6 @@
 ReadMe
 
-This Program to cluster the search result of tweets   
+This program to cluster the search result of tweets   
 
 Required Files - put into same directory   
 
@@ -33,15 +33,14 @@ How to Run
 
 	Put folder under the $GOPATH directory 
 	
-		go get github.com/bugra/kmeans"//K-Means Library
-	    go get github.com/srom/tokenizer"//NLP Tokenizer for English
+		go get github.com/bugra/kmeans
+		go get github.com/srom/tokenizer
 		go get github.com/ChimeraCoder/anaconda 
-		go run goSearch.go 'query'  
+		go run goSearch.go 'type what ever you want to search'  
  	
  	Output will be in the same directory as well  
 
  	Please refer Sample output "Steve-Jobs-Cluster.txt"  
- 		
  		All Tweets are clustered in 10 groups (0-9)  
  		Group 8 only get BEST & FIRST  
  		Group 9 is good sample, BEST & FIRST & Rest sort by timestamp  
