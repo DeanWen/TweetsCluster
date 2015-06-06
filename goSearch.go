@@ -63,10 +63,15 @@ type Node struct {
 
 func main() {
 	/*
+	 * Read Query Paramter from comander line
+	 */
+	args := os.Args
+	query := string(args[1])
+	/*
 	 *@posts : the list of all tweets.Text
 	 *@nodes : the list of all nodes
 	 */
-	posts, nodes := searchTweets("Obama")
+	posts, nodes := searchTweets(query)
 	
 	/*
 	 *@tokenizedList : the list of tokenized posts (tweet.text)
@@ -115,7 +120,8 @@ func main() {
 	/*
 	 *print in terminal and write to file
 	 */
-	printRes(finalClusters)
+	filename := query + "-cluster.txt"
+	printRes(finalClusters, filename)
 }
 
 /*
@@ -129,7 +135,17 @@ func main() {
  * @bagOfUniqueWords[]string a global unique bag of words
  */
 func tokenize(posts []string) ([]map[string]int, []string) {
-	absPath, _ := filepath.Abs("Documents/GO/stop_words.txt")
+	pwd, err := os.Getwd()
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+    /*
+     * get the stop-words list from txt file
+     * should in the same directory
+     */
+    txtPath := string(pwd) + "/stop_words.txt"
+	absPath, _ := filepath.Abs(txtPath)
 	bwtokenizer := tokenizer.NewBagOfWordsTokenizer(absPath)
 	
 	var tokenizedList []map[string]int
@@ -379,9 +395,21 @@ func swap(arrayzor []Node, i, j int) {
 }
 
 
-func printRes(finalClusters map[int][]Node) {
-	filename := "Documents/GO/searchTweets/test.txt"
-	f, err := os.Create(filename)
+func printRes(finalClusters map[int][]Node, filename string) {
+	/*
+	 * Get current directory path
+	 */
+	pwd, err := os.Getwd()
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+    /*
+     * create result file in same dir
+     * name format query-cluster
+     */
+    newFile := string(pwd) + "/" + filename
+	f, err := os.Create(newFile)
 	if err != nil {
 		fmt.Println(err)
 	}
